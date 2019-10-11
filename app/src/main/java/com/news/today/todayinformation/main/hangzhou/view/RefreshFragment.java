@@ -16,5 +16,6 @@ public class RefreshFragment extends BaseFragment {
     @Override
     public void afterBindView() {
         godRefresh.setRefreshManager();
+        godRefresh.refreshOver();
     }
 }

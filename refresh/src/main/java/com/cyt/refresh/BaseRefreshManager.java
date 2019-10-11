@@ -13,4 +13,12 @@ public abstract class BaseRefreshManager {
     }
 
     public abstract View getHeaderView();
+
+    public abstract void downRefresh();
+
+    public abstract void releaseRefresh();
+
+    public abstract void iddleRefresh();
+
+    public abstract void refreshing();
 }
