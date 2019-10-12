@@ -12,6 +12,7 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
 import androidx.annotation.Nullable;
+import androidx.recyclerview.widget.RecyclerView;
 
 public class GodRefreshLayout extends LinearLayout {
 
@@ -20,10 +21,14 @@ public class GodRefreshLayout extends LinearLayout {
     private View mHeadView;
     private int mHeadViewHeight;
     private int downY;
+    private int interceptDownY;
+    private int interceptDownX;
     private int minHeadViewHeight;// 头部布局最小的一个高度
     private int maxHeadViewHeight;// 头部布局最大的一个高度
 
     private RefreshState mCurrentRefreshState = RefreshState.IDDLE;
+    private RefreshingListenter mRefreshingListener;// 正在刷新回调接口
+    private RecyclerView mRecyclerView;
 
     // 定义下拉刷新的状态，依次为 静止，下拉刷新，释放刷新，正在刷新，刷新完成
     private enum RefreshState {
@@ -83,8 +88,21 @@ public class GodRefreshLayout extends LinearLayout {
     /**
      * 刷新完成后的操作
      */
-    public void refreshOver(){
+    public void refreshOver() {
         hideHeadView(getHeadViewLayoutParams());
+    }
+
+    public interface RefreshingListenter {
+
+        void onRefreshing();
+
+    }
+
+    /**
+     * 自定义回调接口
+     */
+    public void setRefreshListener(RefreshingListenter refreshListener) {
+        this.mRefreshingListener = refreshListener;
     }
 
     @Override
@@ -95,6 +113,9 @@ public class GodRefreshLayout extends LinearLayout {
                 return true;
             case MotionEvent.ACTION_MOVE:
                 int moveY = (int) event.getY();
+                if (downY == 0){
+                    downY = interceptDownY;
+                }
                 int dy = moveY - downY;
                 if (dy > 0) {
                     LayoutParams layoutParams = (LayoutParams) mHeadView.getLayoutParams();
@@ -114,7 +135,7 @@ public class GodRefreshLayout extends LinearLayout {
                 }
                 return true;
             case MotionEvent.ACTION_UP:
-                if (handleEventUp(event)){
+                if (handleEventUp(event)) {
                     return true;
                 }
                 break;
@@ -126,20 +147,22 @@ public class GodRefreshLayout extends LinearLayout {
 
     private boolean handleEventUp(MotionEvent event) {
         final LayoutParams layoutParams = getHeadViewLayoutParams();
-        if (mCurrentRefreshState == RefreshState.DOWNREFRESH){
+        if (mCurrentRefreshState == RefreshState.DOWNREFRESH) {
             hideHeadView(layoutParams);
-        }else if (mCurrentRefreshState == RefreshState.RELEASEREFRESH){
+        } else if (mCurrentRefreshState == RefreshState.RELEASEREFRESH) {
             layoutParams.topMargin = 0;
             mHeadView.setLayoutParams(layoutParams);
             mCurrentRefreshState = RefreshState.REFRESHING;
             handleRefreshState(mCurrentRefreshState);
-
+            if (mRefreshingListener != null) {
+                mRefreshingListener.onRefreshing();
+            }
         }
 
         return layoutParams.topMargin > minHeadViewHeight;
     }
 
-    private void hideHeadView(final LayoutParams layoutParams){
+    private void hideHeadView(final LayoutParams layoutParams) {
         ValueAnimator valueAnimator = ValueAnimator.ofInt(layoutParams.topMargin, minHeadViewHeight);
         valueAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
@@ -160,7 +183,7 @@ public class GodRefreshLayout extends LinearLayout {
         valueAnimator.start();
     }
 
-    private LayoutParams getHeadViewLayoutParams(){
+    private LayoutParams getHeadViewLayoutParams() {
         return (LayoutParams) mHeadView.getLayoutParams();
     }
 
@@ -183,4 +206,44 @@ public class GodRefreshLayout extends LinearLayout {
         }
     }
 
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        switch (ev.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                interceptDownY = (int) ev.getY();
+                interceptDownX = (int) ev.getX();
+                break;
+            case MotionEvent.ACTION_MOVE:
+                // 1、确定滑动的一个方向，只有上下滑动才会触发
+                int dy = (int) (ev.getY() - interceptDownY);
+                int dx = (int) (ev.getX() - interceptDownX);
+                if (Math.abs(dy) > Math.abs(dx) && dy > 0 && handleChildViewIsTop()){
+                    // 证明是上下滑动
+                    
+                }
+                break;
+            case MotionEvent.ACTION_UP:
+                break;
+            default:
+                break;
+        }
+        return super.onInterceptTouchEvent(ev);
+    }
+
+    private boolean handleChildViewIsTop() {
+        if (mRecyclerView != null){
+            return RefreshScrollingUtil.isRecyclerViewToTop(mRecyclerView);
+        }
+        return false;
+    }
+
+    // 这个方法回调时，可以获取当前ViewGroup的子View
+    @Override
+    protected void onFinishInflate() {
+        super.onFinishInflate();
+        View childAt = getChildAt(0);
+        if (childAt instanceof RecyclerView){
+            mRecyclerView = (RecyclerView) childAt;
+        }
+    }
 }
